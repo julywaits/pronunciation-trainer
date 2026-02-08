@@ -715,7 +715,7 @@ const STATE = {
     currentIndex: 0, currentCategory: 'all', filteredWords: [],
     speechRate: 1.0, voiceLang: 'en-US', masteryThreshold: 5,
     isRecording: false, recognition: null, mediaRecorder: null, audioChunks: [],
-    geminiKey: 'AIzaSyBaScxISd3vMXRNXSCc9ycsccv3-R6QpQc', geminiModel: 'gemini-2.5-flash', useGemini: true,
+    geminiKey: '', geminiModel: 'gemini-2.5-flash', useGemini: false,
     progress: {},
     challengeActive: false, challengeTimer: null, challengeTimeLeft: 60,
     challengeCorrect: 0, challengeTotal: 0, challengeStreak: 0, challengeBestStreak: 0,
@@ -743,9 +743,8 @@ function loadState() {
             STATE.speechRate = d.speechRate || 1.0;
             STATE.voiceLang = d.voiceLang || 'en-US';
             STATE.masteryThreshold = d.masteryThreshold || 5;
-            // Keep hardcoded key as default, allow override
-            if (d.geminiKey) STATE.geminiKey = d.geminiKey;
-            if (d.geminiModel) STATE.geminiModel = d.geminiModel;
+            STATE.geminiKey = d.geminiKey || '';
+            STATE.geminiModel = d.geminiModel || 'gemini-2.5-flash';
             STATE.useGemini = !!STATE.geminiKey;
         }
     } catch(e) {}
@@ -753,10 +752,11 @@ function loadState() {
     document.getElementById('masteryThreshold').value = STATE.masteryThreshold;
     document.getElementById('speedLabel').textContent = STATE.speechRate.toFixed(1) + 'x';
     document.getElementById('geminiModelSelect').value = STATE.geminiModel;
-    // Always show configured since we have hardcoded key
-    document.getElementById('geminiKeyInput').value = '••••••••';
-    document.getElementById('geminiStatus').textContent = '已配置 — 模型: ' + STATE.geminiModel;
-    document.getElementById('geminiStatus').className = 'api-status connected';
+    if (STATE.geminiKey) {
+        document.getElementById('geminiKeyInput').value = '••••••••';
+        document.getElementById('geminiStatus').textContent = '已配置 — 模型: ' + STATE.geminiModel;
+        document.getElementById('geminiStatus').className = 'api-status connected';
+    }
 }
 
 function saveState() {
