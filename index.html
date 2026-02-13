@@ -961,34 +961,18 @@ async function sendToGemini(audioBlob) {
     const arrayBuf = await audioBlob.arrayBuffer();
     const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuf)));
 
-    const prompt = `You are an expert English pronunciation coach for Chinese (Mandarin) speakers.
+    const prompt = `You are an English pronunciation coach for Chinese speakers.
 
 The student is trying to say: "${currentWord}" (IPA: ${wordEntry?.ipa || ''})
-This is ${currentWord.includes(' ') ? 'a phrase/sentence' : 'a single word'}.
 
-Listen to the audio and evaluate their pronunciation. ${currentWord.includes(' ') ? 'Pay attention to connected speech, weak forms, rhythm, and intonation in addition to individual sounds.' : ''}
+Listen to the audio and evaluate. Return ONLY one line in this exact format (use | as separator):
+recognized text|score 0-100|advice in Chinese
 
-Respond ONLY with a JSON object, no markdown, no explanation:
-{
-  "recognized": "what you heard them say",
-  "score": 0-100,
-  "correct": true/false,
-  "phoneme_issues": [
-    {"phoneme": "/θ/", "problem": "pronounced as /s/", "advice": "舌尖放在齿间"}
-  ],
-  "overall_advice": "one sentence advice in Chinese",
-  "confidence": 0-1
-}
+Example:
+three|85|发音准确，继续保持
+sree|35|th音发成了s，舌尖要放在上下齿之间
 
-Scoring guide:
-- 85-100: Correct and natural
-- 60-84: Understandable but with noticeable accent issues
-- 30-59: Significant pronunciation errors
-- 0-29: Wrong word or unintelligible
-
-${currentWord.includes(' ') ? 'For phrases, also evaluate: connected speech (linking sounds between words), weak forms (unstressed words like a, the, of, to), rhythm (stress-timed pattern), and natural intonation.' : ''}
-
-Be strict but fair. Chinese speakers commonly struggle with: th/s confusion, r/l confusion, v/w confusion, vowel length distinctions, final consonant dropping, -ed endings, connected speech, and weak forms.`;
+Just one line, no other text.`;
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${STATE.geminiModel}:generateContent?key=${STATE.geminiKey}`;
 
@@ -1001,7 +985,7 @@ Be strict but fair. Chinese speakers commonly struggle with: th/s confusion, r/l
         }],
         generationConfig: {
             temperature: 0.1,
-            maxOutputTokens: 500,
+            maxOutputTokens: 200,
         }
     };
 
@@ -1019,41 +1003,21 @@ Be strict but fair. Chinese speakers commonly struggle with: th/s confusion, r/l
 
     const data = await resp.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-    // Robust JSON parsing - handle Gemini's quirks
-    let jsonStr = text;
-    const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (jsonMatch) jsonStr = jsonMatch[1];
-    jsonStr = jsonStr.trim();
     
-    // Fix common JSON issues
-    jsonStr = jsonStr
-        .replace(/'/g, '"')
-        .replace(/,\s*([}\]])/g, '$1')
-        .replace(/{\s*(\w+)\s*:/g, '{"$1":')
-        .replace(/,\s*(\w+)\s*:/g, ',"$1":');
+    console.log('Gemini audio response:', text);
 
-    let result;
-    try {
-        result = JSON.parse(jsonStr);
-    } catch(e) {
-        // Try to extract JSON object
-        const objMatch = jsonStr.match(/\{[\s\S]*\}/);
-        if (objMatch) {
-            let objStr = objMatch[0]
-                .replace(/'/g, '"')
-                .replace(/,\s*([}\]])/g, '$1')
-                .replace(/{\s*(\w+)\s*:/g, '{"$1":')
-                .replace(/,\s*(\w+)\s*:/g, ',"$1":');
-            try {
-                result = JSON.parse(objStr);
-            } catch(e2) {
-                throw new Error('无法解析 Gemini 返回: ' + text.substring(0, 100));
-            }
-        } else {
-            throw new Error('无法解析 Gemini 返回: ' + text.substring(0, 100));
-        }
+    // Parse simple pipe format
+    const lines = text.split('\n').filter(line => line.includes('|'));
+    if (lines.length === 0) {
+        throw new Error('返回格式不正确');
     }
+    
+    const parts = lines[0].split('|').map(p => p.trim());
+    const result = {
+        recognized: parts[0] || '',
+        score: parseInt(parts[1]) || 0,
+        overall_advice: parts[2] || ''
+    };
 
     handleGeminiResult(result, currentWord);
 }
